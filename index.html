@@ -76,6 +76,10 @@ main {
   outline:none;
 }
 
+.search:focus {
+  border-color:var(--purple);
+}
+
 .filters {
   display:flex;
   flex-wrap:wrap;
@@ -117,6 +121,9 @@ main {
   border:1px solid var(--border);
   overflow:hidden;
   transition:.2s;
+  text-decoration:none;
+  color:inherit;
+  display:block;
 }
 
 .card:hover {
@@ -303,12 +310,25 @@ function escapeHTML(value) {
   })[char]);
 }
 
+function formatPrice(value) {
+  if (!value) return "Price unavailable";
+
+  const number = Number(String(value).replace(/[^\d]/g, ""));
+
+  if (!number) return escapeHTML(value);
+
+  return "Rp " + number.toLocaleString("id-ID");
+}
+
 async function loadGames() {
   const container = document.getElementById("games");
 
   try {
     const response = await fetch(CSV_URL);
-    if (!response.ok) throw new Error("Gagal mengambil data spreadsheet");
+
+    if (!response.ok) {
+      throw new Error("Gagal mengambil data spreadsheet");
+    }
 
     const csv = await response.text();
     const rows = parseCSV(csv);
@@ -323,9 +343,11 @@ async function loadGames() {
 
     allGames = rows.slice(1).map(row => {
       const item = {};
+
       headers.forEach((header, index) => {
         item[header] = (row[index] || "").trim();
       });
+
       return item;
     }).filter(game => game.name);
 
@@ -333,7 +355,8 @@ async function loadGames() {
 
   } catch (error) {
     container.innerHTML =
-      '<div class="empty">Data game gagal dimuat. Periksa link CSV dan pengaturan publikasi Google Sheets.</div>';
+      '<div class="empty">Data game gagal dimuat. Periksa Google Sheets.</div>';
+
     document.getElementById("count").textContent = "Error";
     console.error(error);
   }
@@ -344,8 +367,10 @@ function renderGames() {
 
   const filtered = allGames.filter(game => {
     const platform = (game.platform || "").toUpperCase();
+
     const matchesPlatform =
-      activePlatform === "ALL" || platform === activePlatform;
+      activePlatform === "ALL" ||
+      platform === activePlatform;
 
     const matchesSearch =
       (game.name || "").toLowerCase().includes(search);
@@ -366,12 +391,11 @@ function renderGames() {
 
   container.innerHTML = filtered.map(game => {
     const cover = getCoverUrl(game.cover);
-    const price = game.price
-      ? "Rp " + Number(game.price.replace(/[^\d]/g, "") || 0).toLocaleString("id-ID")
-      : "Price unavailable";
 
     return `
-      <article class="card">
+      <a href="./game.html?id=${encodeURIComponent(game.id)}"
+         class="card">
+
         <img
           class="cover"
           src="${escapeHTML(cover || "https://placehold.co/400x550/211b32/ffffff?text=SAVE+POINT")}"
@@ -379,18 +403,31 @@ function renderGames() {
           loading="lazy"
           onerror="this.onerror=null;this.src='https://placehold.co/400x550/211b32/ffffff?text=NO+COVER';"
         >
+
         <div class="card-content">
-          <div class="platform">${escapeHTML(game.platform || "")}</div>
-          <div class="name">${escapeHTML(game.name)}</div>
-          <div class="price">${escapeHTML(price)}</div>
-          <div class="status">${escapeHTML(game.status || "Available")}</div>
+          <div class="platform">
+            ${escapeHTML(game.platform || "")}
+          </div>
+
+          <div class="name">
+            ${escapeHTML(game.name)}
+          </div>
+
+          <div class="price">
+            ${formatPrice(game.price)}
+          </div>
+
+          <div class="status">
+            ${escapeHTML(game.status || "Available")}
+          </div>
         </div>
-      </article>
+      </a>
     `;
   }).join("");
 }
 
-document.getElementById("search").addEventListener("input", renderGames);
+document.getElementById("search")
+  .addEventListener("input", renderGames);
 
 document.querySelectorAll(".filters button").forEach(button => {
   button.addEventListener("click", () => {
@@ -398,7 +435,9 @@ document.querySelectorAll(".filters button").forEach(button => {
       .forEach(btn => btn.classList.remove("active"));
 
     button.classList.add("active");
+
     activePlatform = button.dataset.platform;
+
     renderGames();
   });
 });
