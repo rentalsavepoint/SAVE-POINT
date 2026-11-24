@@ -1,0 +1,280 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GAME DETAIL — SAVE POINT</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:#090812;
+  --panel:#151323;
+  --purple:#8b5cf6;
+  --blue:#35baff;
+  --text:#f4f0ff;
+  --muted:#9993ae;
+  --border:#302944;
+}
+
+* { box-sizing:border-box; }
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+}
+
+header {
+  padding:25px 7%;
+  border-bottom:1px solid var(--border);
+}
+
+.logo {
+  font-family:'Press Start 2P',cursive;
+  font-size:18px;
+  color:var(--purple);
+  text-shadow:3px 3px var(--blue);
+}
+
+main {
+  max-width:1100px;
+  margin:auto;
+  padding:50px 6%;
+}
+
+.back {
+  display:inline-block;
+  color:var(--blue);
+  text-decoration:none;
+  font-weight:700;
+  margin-bottom:35px;
+  letter-spacing:1px;
+}
+
+.back:hover { color:var(--purple); }
+
+.detail {
+  display:grid;
+  grid-template-columns:minmax(0,380px) 1fr;
+  gap:45px;
+  align-items:start;
+}
+
+.cover {
+  width:100%;
+  border:1px solid var(--border);
+  box-shadow:0 0 30px #8b5cf633;
+  background:var(--panel);
+}
+
+.platform {
+  color:var(--blue);
+  font-weight:700;
+  letter-spacing:2px;
+  font-size:15px;
+}
+
+h1 {
+  font-family:'Press Start 2P',cursive;
+  font-size:clamp(19px,3vw,30px);
+  line-height:1.7;
+  margin:20px 0;
+}
+
+.label {
+  color:var(--muted);
+  font-size:14px;
+  letter-spacing:2px;
+}
+
+.price {
+  font-size:32px;
+  color:var(--purple);
+  font-weight:700;
+  margin:5px 0 25px;
+}
+
+.status {
+  display:inline-block;
+  padding:8px 16px;
+  border:1px solid var(--blue);
+  color:var(--blue);
+  font-weight:700;
+}
+
+.panel {
+  margin-top:30px;
+  padding:22px;
+  background:var(--panel);
+  border:1px solid var(--border);
+}
+
+.panel h3 {
+  font-family:'Press Start 2P',cursive;
+  font-size:12px;
+  color:var(--blue);
+  line-height:1.8;
+}
+
+footer {
+  text-align:center;
+  padding:30px;
+  color:var(--muted);
+  border-top:1px solid var(--border);
+}
+
+@media(max-width:700px) {
+  .detail { grid-template-columns:1fr; gap:25px; }
+  .cover { max-width:360px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">SAVE POINT</div>
+</header>
+
+<main>
+  <a class="back" href="./index.html">← BACK TO COLLECTION</a>
+
+  <section id="content">
+    Loading game details...
+  </section>
+</main>
+
+<footer>SAVE POINT © 2026 — PLAY MORE, SAVE MORE</footer>
+
+<script>
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRrXW9ukBwUNbsVW2p2re5PtJrUrQPpW2RnX-RKW-hOs1bSp51nbyrSASDzSX9ts2dU08rPrY2wKjgi/pub?gid=2128239766&single=true&output=csv";
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], value = "", quoted = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i], next = text[i + 1];
+
+    if (c === '"' && quoted && next === '"') {
+      value += '"'; i++;
+    } else if (c === '"') {
+      quoted = !quoted;
+    } else if (c === ',' && !quoted) {
+      row.push(value); value = "";
+    } else if ((c === '\n' || c === '\r') && !quoted) {
+      if (c === '\r' && next === '\n') i++;
+      row.push(value);
+      if (row.some(x => x.trim())) rows.push(row);
+      row = []; value = "";
+    } else {
+      value += c;
+    }
+  }
+
+  row.push(value);
+  if (row.some(x => x.trim())) rows.push(row);
+  return rows;
+}
+
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;",
+    '"':"&quot;", "'":"&#39;"
+  })[c]);
+}
+
+function getCoverUrl(url) {
+  if (!url) return "";
+
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/)
+    || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+
+  if (url.includes("drive.google.com") && match) {
+    return "https://drive.google.com/thumbnail?id=" + match[1] + "&sz=w800";
+  }
+
+  return url;
+}
+
+async function loadDetail() {
+  const content = document.getElementById("content");
+  const id = new URLSearchParams(location.search).get("id");
+
+  if (!id) {
+    content.textContent = "Game ID tidak ditemukan.";
+    return;
+  }
+
+  try {
+    const response = await fetch(CSV_URL);
+    if (!response.ok) throw new Error("Gagal mengambil data");
+
+    const rows = parseCSV(await response.text());
+    const headers = rows[0].map(x => x.trim().toLowerCase());
+
+    const games = rows.slice(1).map(row => {
+      const game = {};
+      headers.forEach((header, i) => game[header] = (row[i] || "").trim());
+      return game;
+    });
+
+    const game = games.find(g => g.id === id);
+
+    if (!game) {
+      content.textContent = "Game tidak ditemukan.";
+      return;
+    }
+
+    document.title = game.name + " — SAVE POINT";
+
+    const price = game.price
+      ? "Rp " + Number(game.price.replace(/[^\d]/g, "") || 0).toLocaleString("id-ID")
+      : "Price unavailable";
+
+    const cover = getCoverUrl(game.cover);
+
+    content.innerHTML = `
+      <div class="detail">
+        <div>
+          <img class="cover"
+            src="${esc(cover || "https://placehold.co/400x550/211b32/ffffff?text=SAVE+POINT")}"
+            alt="${esc(game.name)}"
+            onerror="this.onerror=null;this.src='https://placehold.co/400x550/211b32/ffffff?text=NO+COVER'">
+        </div>
+
+        <div>
+          <div class="platform">${esc(game.platform || "")}</div>
+          <h1>${esc(game.name)}</h1>
+
+          <div class="label">PRICE</div>
+          <div class="price">${esc(price)}</div>
+
+          <div class="label">AVAILABILITY</div>
+          <div class="status">${esc(game.status || "Available")}</div>
+
+          <div class="panel">
+            <h3>GAME INFORMATION</h3>
+            <p>Platform: ${esc(game.platform || "-")}</p>
+            <p>Game ID: ${esc(game.id || "-")}</p>
+            <p>Last Updated: ${esc(game.updatedAt || "-")}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+  } catch (error) {
+    content.textContent = "Gagal memuat detail game. Silakan coba lagi.";
+    console.error(error);
+  }
+}
+
+loadDetail();
+</script>
+
+</body>
+</html>
